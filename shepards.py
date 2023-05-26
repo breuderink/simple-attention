@@ -11,23 +11,23 @@ def shepards_MHA(Q, K, V, mask=None, p=2, eps=1e-4):
     return W @ V
 
 
-class ShepardGatedAttention(nn.Module):
+class ShepardsGatedAttention(nn.Module):
     def __init__(self, *, d: int, heads: int = 8):
         super().__init__()
         self.heads = heads
         self.d = d
 
-        self.to_qkvg = nn.Sequential(
+        self.project_in = nn.Sequential(
             nn.LayerNorm(d, elementwise_affine=False),
             nn.Linear(d, 4 * d),
         )
-        self.to_out = nn.Linear(d, d)
+        self.project_out = nn.Linear(d, d)
 
     def QKVG(self, X):
         b, t, d = X.shape
         h = self.heads
 
-        P = self.to_qkvg(X)  # (b, t, 4*d)
+        P = self.project_in(X)  # (b, t, 4 * d)
         P = P.view(b, t, h, 4 * d // h)  # (b, t, h, 4 * d / h)
         P = P.transpose(1, 2)  # (b, t, h, 4 * d / h)
 
@@ -41,7 +41,7 @@ class ShepardGatedAttention(nn.Module):
         A = shepards_MHA(Q, K, V, mask=mask)  # (b, h, t, d / h)
         O = (G * A).transpose(2, 1).view(b, t, d)  # (b, t, d)
 
-        return X + self.to_out(O)
+        return X + self.project_out(O)
 
 
 def autoregressive_mask(n):
@@ -54,7 +54,7 @@ b, t, d = 16, 100, 128
 
 X = torch.randn(b, t, d)
 mask = autoregressive_mask(t)
-SGA = ShepardGatedAttention(d=d, heads=8)
+SGA = ShepardsGatedAttention(d=d, heads=8)
 
 Y1 = SGA(X, mask=mask)
 Y1.shape
@@ -66,4 +66,4 @@ Y2 = SGA(X, mask=mask)
 torch.all(Y1 == Y2, dim=-1)
 
 # %%
-torch.onnx.export(SGA, (X, mask), 'SGA.onnx' )
+torch.onnx.export(SGA, (X, mask), "SGA.onnx")
