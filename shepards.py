@@ -3,13 +3,20 @@ import torch
 from torch import nn
 import matplotlib.pyplot as plt
 
+
 # %%
 def shepards_interpolation(Q, K, V, mask=None, p=2, eps=1e-8):
     D = torch.cdist(Q, K)
-    W = torch.pow(D.clamp(min=eps), -p)
-    if mask:
-        W = torch.where(mask, W, torch.zeros(1))
-    A = W / torch.sum(W, dim=2, keepdims=True)
+    D = torch.maximum(D, torch.full_like(D, eps))
+
+    W = torch.pow(D, -p)
+
+    if mask is not None:
+        W = W.masked_full(mask, 0)
+
+    N = torch.sum(W, dim=2, keepdims=True)
+    N = torch.maximum(N, torch.full_like(N, eps))
+    A = W / N
     Y = torch.bmm(A, V)
     return Y
 
@@ -17,16 +24,16 @@ def shepards_interpolation(Q, K, V, mask=None, p=2, eps=1e-8):
 class ShepardsLayer(nn.Module):
     def __init__(self, *, d, d_qk, d_v):
         super().__init__()
-        self.norm = nn.Identity()  # FIXME
+        self.norm = nn.LayerNorm(d)
         self.Q = nn.Linear(d, d_qk)
         self.K = nn.Linear(d, d_qk)
         self.V = nn.Linear(d, d_v)
         self.gate = nn.Linear(d, d_v)
         self.proj = nn.Linear(d_v, d)
 
-    def forward(self, X):
+    def forward(self, X, mask=None):
         N = self.norm(X)
-        A = shepards_interpolation(self.Q(N), self.K(N), self.V(N))
+        A = shepards_interpolation(self.Q(N), self.K(N), self.V(N), mask=mask)
         G = self.gate(N)
         return X + self.proj(A * G)
 
