@@ -1,56 +1,47 @@
 # %%
 import torch
 from torch import nn
-from einops import rearrange
 
 
-# %%
-def shepards_attention(query, key, value, mask=None, p=2, eps=1e-8):
-    # Compute query-key distance.
-    distance = torch.cdist(query, key)
-    distance = torch.maximum(distance, torch.full_like(distance, eps))
-
-    # Computer masked, inverse-distance weight.
-    weight = torch.pow(distance, -p)
+def shepards_MHA(Q, K, V, mask=None, p=2, eps=1e-4):
+    W = torch.pow(eps + torch.cdist(Q, K), -p)
     if mask is not None:
-        weight = weight.masked_fill(mask, 0)
-
-    # Compute attention by normalizing.
-    total = torch.sum(weight, dim=2, keepdims=True)
-    total = torch.maximum(total, torch.full_like(total, eps))
-    attention = weight / total
-
-    # Apply attention.
-    output = torch.bmm(attention, value)
-    return output, attention
+        W = W.masked_fill(mask, 0)
+    W = W / (eps + torch.sum(W, dim=-1, keepdims=True))
+    return W @ V
 
 
-def shepards_MHA(Q, K, V, heads=8, **kwargs):
-    Q = rearrange(Q, "b n (h d) -> (b h) n d", h=heads)
-    K = rearrange(K, "b n (h d) -> (b h) n d", h=heads)
-    V = rearrange(V, "b n (h d) -> (b h) n d", h=heads)
-
-    Y, A = shepards_attention(Q, K, V, **kwargs)
-
-    print(A.shape)
-    Y = rearrange(Y, "(b h) n d -> b n (h d)", h=heads)
-    A = rearrange(A, "(b h) n1 n2 -> b n1 (h n2)", h=heads)
-    return Y, A
-
-
-class ShepardsLayer(nn.Module):
-    def __init__(self, *, d: int, d_qk: int, d_vg: int, heads: int = 1):
+class ShepardGatedAttention(nn.Module):
+    def __init__(self, *, d: int, heads: int = 8):
         super().__init__()
         self.heads = heads
-        self.splits = [d_qk, d_qk, d_vg, d_vg]
+        self.d = d
 
-        self.to_qkvg = nn.Sequential(nn.LayerNorm(d), nn.Linear(d, 2 * d_qk + 2 * d_vg))
-        self.to_out = nn.Linear(d_vg, d)
+        self.to_qkvg = nn.Sequential(
+            nn.LayerNorm(d, elementwise_affine=False),
+            nn.Linear(d, 4 * d),
+        )
+        self.to_out = nn.Linear(d, d)
+
+    def QKVG(self, X):
+        b, t, d = X.shape
+        h = self.heads
+
+        P = self.to_qkvg(X)  # (b, t, 4*d)
+        P = P.view(b, t, h, 4 * d // h)  # (b, t, h, 4 * d / h)
+        P = P.transpose(1, 2)  # (b, t, h, 4 * d / h)
+
+        Q, K, V, G = torch.split(P, d // h, dim=-1)  # (b, h, t, _)
+        return Q, K, V, G
 
     def forward(self, X, mask=None):
-        Q, K, V, G = torch.split(self.to_qkvg(X), self.splits, dim=2)
-        A, _ = shepards_MHA(Q, K, V, mask=mask)
-        return X + self.to_out(A * G)
+        b, t, d = X.shape
+
+        Q, K, V, G = self.QKVG(X)
+        A = shepards_MHA(Q, K, V, mask=mask)  # (b, h, t, d / h)
+        O = (G * A).transpose(2, 1).view(b, t, d)  # (b, t, d)
+
+        return X + self.to_out(O)
 
 
 def autoregressive_mask(n):
@@ -59,30 +50,20 @@ def autoregressive_mask(n):
     return position_value >= position_query
 
 
-# %%
+b, t, d = 16, 100, 128
 
-import plotly.express as px
+X = torch.randn(b, t, d)
+mask = autoregressive_mask(t)
+SGA = ShepardGatedAttention(d=d, heads=8)
 
-b, n, d = 2, 10, 32
-X = torch.randn(b, n, d)
-
-model = ShepardsLayer(d=d, d_qk=d, d_vg=2 * d, heads=4)
-mask = autoregressive_mask(n)
-
-Y1 = model(X, mask=mask)
-X[:, n // 2, :] = 0
-Y2 = model(X, mask=mask)
-
-# TODO: test autoregressive mask.
-torch.all(Y1 == Y2, dim=2)
+Y1 = SGA(X, mask=mask)
+Y1.shape
 
 # %%
+X[:, t // 2, :] = 0
+Y2 = SGA(X, mask=mask)
 
-# TODO: test that MHA is equivalent to parallel regular attention.
-heads = 2
+torch.all(Y1 == Y2, dim=-1)
 
-Q = torch.randn(b, n, d)
-K = torch.randn(b, n, d)
-V = torch.randn(b, n, 2 * d)
-
-Y, A = shepards_attention(Q, K, V, mask=mask)
+# %%
+torch.onnx.export(SGA, (X, mask), 'SGA.onnx' )

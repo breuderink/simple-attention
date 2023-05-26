@@ -1,5 +1,5 @@
 torch
-einops
+onnx
 pytest
 plotly
 pandas
