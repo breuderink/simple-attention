@@ -47,7 +47,7 @@ class ShepardsGatedAttention(nn.Module):
 def autoregressive_mask(n):
     position_query = torch.arange(n)[None, :, None]
     position_value = torch.arange(n)[None, None, :]
-    return position_value >= position_query
+    return position_value > position_query
 
 
 b, t, d = 16, 100, 128
