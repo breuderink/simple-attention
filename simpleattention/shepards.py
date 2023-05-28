@@ -48,23 +48,3 @@ def autoregressive_mask(n):
     position_query = torch.arange(n)[None, :, None]
     position_value = torch.arange(n)[None, None, :]
     return position_value > position_query
-
-
-if False:
-    b, t, d = 16, 100, 128
-
-    X = torch.randn(b, t, d)
-    mask = autoregressive_mask(t)
-    SGA = ShepardsGatedAttention(d=d, heads=8)
-
-    Y1 = SGA(X, mask=mask)
-    Y1.shape
-
-    # %%
-    X[:, t // 2, :] = 0
-    Y2 = SGA(X, mask=mask)
-
-    torch.all(Y1 == Y2, dim=-1)
-
-    # %%
-    torch.onnx.export(SGA, (X, mask), "SGA.onnx")
