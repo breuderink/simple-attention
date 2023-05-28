@@ -1,4 +1,6 @@
-from shepards import autoregressive_mask
+# %%
+from shepards import autoregressive_mask, shepards_MHA
+import torch
 
 
 def test_autoregressive_mask():
@@ -9,3 +11,34 @@ def test_autoregressive_mask():
     for q in range(5):
         for k in range(5):
             assert mask[0, q, k] == (k > q)
+
+
+def test_attention():
+    b, n, d_qk, d_v = 2, 10, 8, 16
+
+    K = torch.randn(b, n, d_qk)
+    V = torch.randn(b, n, d_v)
+
+    order = torch.randperm(n)
+    Q, T = K[:, order], V[:, order]
+
+    Y = shepards_MHA(Q, K, V)
+    T = V[:, order]
+    torch.testing.assert_close(Y, T)
+
+
+def test_multi_head_attention():
+    b, h, n, d_qk, d_v = 2, 4, 10, 8, 16
+
+    K = torch.randn(b, h, n, d_qk)
+    V = torch.randn(b, h, n, d_v)
+
+    order = torch.randperm(n)
+    Q, T = K[:, :, order], V[:, :, order]
+
+    Y = shepards_MHA(Q, K, V)
+    T = V[:, :, order]
+    torch.testing.assert_close(Y, T)
+
+
+# %%
