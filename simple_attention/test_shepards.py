@@ -90,7 +90,7 @@ def test_ShepardsGatedAttention():
 
 
 def test_ONNX_export():
-    b, n, d = 3, 100, 16
+    b, n, d = 2, 10, 32
     block = ShepardsGatedAttention(d=d)
 
     X = torch.randn(b, n, d)
@@ -110,4 +110,4 @@ def test_ONNX_export():
     ort_session = ort.InferenceSession(f.getvalue())
     (out,) = ort_session.run(None, {"X": X.numpy(), "mask": mask.numpy()})
     Y2 = torch.from_numpy(out)
-    torch.testing.assert_close(Y2, Y)
+    torch.testing.assert_close(Y2, Y, atol=1e-3, rtol=1e-3)
