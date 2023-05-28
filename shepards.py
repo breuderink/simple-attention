@@ -29,7 +29,7 @@ class ShepardsGatedAttention(nn.Module):
 
         P = self.project_in(X)  # (b, t, 4 * d)
         P = P.view(b, t, h, 4 * d // h)  # (b, t, h, 4 * d / h)
-        P = P.transpose(1, 2)  # (b, t, h, 4 * d / h)
+        P = P.transpose(1, 2)  # (b, h, t, 4 * d / h)
 
         Q, K, V, G = torch.split(P, d // h, dim=-1)  # (b, h, t, _)
         return Q, K, V, G
@@ -50,20 +50,21 @@ def autoregressive_mask(n):
     return position_value > position_query
 
 
-b, t, d = 16, 100, 128
+if False:
+    b, t, d = 16, 100, 128
 
-X = torch.randn(b, t, d)
-mask = autoregressive_mask(t)
-SGA = ShepardsGatedAttention(d=d, heads=8)
+    X = torch.randn(b, t, d)
+    mask = autoregressive_mask(t)
+    SGA = ShepardsGatedAttention(d=d, heads=8)
 
-Y1 = SGA(X, mask=mask)
-Y1.shape
+    Y1 = SGA(X, mask=mask)
+    Y1.shape
 
-# %%
-X[:, t // 2, :] = 0
-Y2 = SGA(X, mask=mask)
+    # %%
+    X[:, t // 2, :] = 0
+    Y2 = SGA(X, mask=mask)
 
-torch.all(Y1 == Y2, dim=-1)
+    torch.all(Y1 == Y2, dim=-1)
 
-# %%
-torch.onnx.export(SGA, (X, mask), "SGA.onnx")
+    # %%
+    torch.onnx.export(SGA, (X, mask), "SGA.onnx")
