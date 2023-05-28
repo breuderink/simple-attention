@@ -1,7 +1,7 @@
 from io import BytesIO
 import torch
 import onnxruntime as ort
-from shepards import autoregressive_mask, shepards_MHA, ShepardsGatedAttention
+from simpleattention.shepards import autoregressive_mask, shepards_MHA, ShepardsGatedAttention
 
 
 def test_autoregressive_mask():
