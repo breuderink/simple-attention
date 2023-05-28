@@ -1,5 +1,4 @@
 torch
 onnx
+onnxruntime
 pytest
-plotly
-pandas
