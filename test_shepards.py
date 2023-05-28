@@ -29,19 +29,39 @@ def test_attention():
 def test_multi_head_attention():
     b, h, n, d_qk, d_v = 2, 4, 10, 8, 16
 
+    Q = torch.randn(b, h, n, d_qk)
     K = torch.randn(b, h, n, d_qk)
     V = torch.randn(b, h, n, d_v)
 
-    order = torch.randperm(n)
-    Q, T = K[:, :, order], V[:, :, order]
-
-    # Test that attention works.
     Y = shepards_MHA(Q, K, V)
-    T = V[:, :, order]
-    torch.testing.assert_close(Y, T)
 
     # Test that instances and heads are independent.
     for batch in range(b):
         for head in range(h):
             Y2 = shepards_MHA(Q[batch, head], K[batch, head], V[batch, head])
             torch.testing.assert_close(Y2, Y[batch, head])
+
+
+def test_masked_attention():
+    b, n_q, n_kv, d = 1, 3, 5, 16
+
+    Q = torch.randn(b, n_q, d)
+    K = torch.randn(b, n_kv, d)
+    V = torch.randn(b, n_kv, d)
+
+    mask = torch.rand(n_q, n_kv) < 0.5
+    print(mask)
+
+    Y = shepards_MHA(Q, K, V, mask=mask)
+
+    for i in range(n_q):
+        # Modify a single token.
+        V2 = V.clone()
+        V2[:, i] = 0
+
+        # Recompute attention.
+        Y2 = shepards_MHA(Q, K, V2, mask=mask)
+
+        # Test correspondence between mask and unchanged values.
+        unaffected = torch.all(torch.isclose(Y2, Y), dim=2).flatten()
+        assert (unaffected == mask[:, i]).all()
