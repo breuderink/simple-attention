@@ -1,4 +1,3 @@
-# %%
 from shepards import autoregressive_mask, shepards_MHA
 import torch
 
@@ -36,9 +35,13 @@ def test_multi_head_attention():
     order = torch.randperm(n)
     Q, T = K[:, :, order], V[:, :, order]
 
+    # Test that attention works.
     Y = shepards_MHA(Q, K, V)
     T = V[:, :, order]
     torch.testing.assert_close(Y, T)
 
-
-# %%
+    # Test that instances and heads are independent.
+    for batch in range(b):
+        for head in range(h):
+            Y2 = shepards_MHA(Q[batch, head], K[batch, head], V[batch, head])
+            torch.testing.assert_close(Y2, Y[batch, head])
