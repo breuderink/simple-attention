@@ -1,5 +1,7 @@
-from shepards import autoregressive_mask, shepards_MHA
+from io import BytesIO
 import torch
+import onnxruntime as ort
+from shepards import autoregressive_mask, shepards_MHA, ShepardsGatedAttention
 
 
 def test_autoregressive_mask():
@@ -65,3 +67,43 @@ def test_masked_attention():
         # Test correspondence between mask and unchanged values.
         unaffected = torch.all(torch.isclose(Y2, Y), dim=2).flatten()
         assert (unaffected == mask[:, i]).all()
+
+
+def test_ShepardsGatedAttention():
+    b, n, d = 1, 1, 16
+    block = ShepardsGatedAttention(d=d)
+
+    X = torch.randn(b, n, d)
+    Y = block(X)
+
+    assert X.shape == Y.shape
+    assert sum([p.numel() for p in block.parameters()]) == sum(
+        [
+            d * 4 * (1 + d),  # input projection
+            d * d + d,  # output projection
+        ]
+    )
+
+
+def test_ONNX_export():
+    b, n, d = 3, 100, 16
+    block = ShepardsGatedAttention(d=d)
+
+    X = torch.randn(b, n, d)
+    mask = torch.rand(n, n) < 0.5
+    Y = block(X, mask)
+
+    f = BytesIO()
+    torch.onnx.export(
+        block,
+        (X, mask),
+        f,
+        input_names=["X", "mask"],
+        output_names=["Y"],
+        dynamic_axes={"X": {0: "batch", 1: "token"}},
+    )
+
+    ort_session = ort.InferenceSession(f.getvalue())
+    (out,) = ort_session.run(None, {"X": X.numpy(), "mask": mask.numpy()})
+    Y2 = torch.from_numpy(out)
+    torch.testing.assert_close(Y2, Y)
