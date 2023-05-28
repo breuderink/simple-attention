@@ -1,7 +1,7 @@
 from io import BytesIO
 import torch
 import onnxruntime as ort
-from simpleattention.shepards import (
+from simple_attention.shepards import (
     autoregressive_mask,
     shepards_MHA,
     ShepardsGatedAttention,

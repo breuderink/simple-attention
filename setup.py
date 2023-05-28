@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="simpleattention",
+    name="simple-attention",
     version="1.0.0",
     author="Boris Reuderink",
     author_email="boris@cortext.nl",

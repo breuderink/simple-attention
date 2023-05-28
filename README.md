@@ -1,6 +1,6 @@
-# SimpleAttention
+# Simple Attention
 
-SimpleAttention is a Python library that offers a simplified alternative
+Simple-attention is a Python library that offers a simplified alternative
 attention mechanism to the transformer architecture. It aims to address the
 complexity of transformers by using an inverse distance weighting approach
 instead of scaled dot-product attention. This simplification eliminates the
