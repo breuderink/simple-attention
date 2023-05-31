@@ -10,6 +10,22 @@ def shepards_MHA(Q, K, V, mask=None, p=2, eps=1e-4):
     return W @ V
 
 
+def autoregressive_mask(n):
+    position_query = torch.arange(n)[None, :, None]
+    position_value = torch.arange(n)[None, None, :]
+    return position_value > position_query
+
+
+class ReZero(nn.Module):
+    def __init__(self, fn) -> None:
+        super().__init__()
+        self.fn = fn
+        self.alpha = nn.Parameter(torch.zeros(1))
+
+    def forward(self, X, *args, **kwargs):
+        return X + self.alpha * self.fn(X, *args, **kwargs)
+
+
 class ShepardsGatedAttention(nn.Module):
     def __init__(self, *, d: int, heads: int = 8):
         super().__init__()
@@ -41,9 +57,3 @@ class ShepardsGatedAttention(nn.Module):
         O = (G * A).transpose(2, 1).view(b, t, d)  # (b, t, d)
 
         return X + self.project_out(O)
-
-
-def autoregressive_mask(n):
-    position_query = torch.arange(n)[None, :, None]
-    position_value = torch.arange(n)[None, None, :]
-    return position_value > position_query

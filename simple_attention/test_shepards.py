@@ -1,9 +1,11 @@
 from io import BytesIO
 import torch
+from torch import nn
 import onnxruntime as ort
 from simple_attention.shepards import (
     autoregressive_mask,
     shepards_MHA,
+    ReZero,
     ShepardsGatedAttention,
 )
 
@@ -71,6 +73,15 @@ def test_masked_attention():
         # Test correspondence between mask and unchanged values.
         unaffected = torch.all(torch.isclose(Y2, Y), dim=2).flatten()
         assert (unaffected == mask[:, i]).all()
+
+
+def test_ReZero():
+    m = ReZero(nn.Identity())
+
+    assert sum(p.numel() for p in m.parameters()) == 1
+    torch.testing.assert_close(m.alpha.data, torch.zeros(1))
+
+    # TODO: test gradient?
 
 
 def test_ShepardsGatedAttention():
