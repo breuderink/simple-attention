@@ -40,9 +40,9 @@ class MultiHeadProjections(nn.Module):
 
         P = self.project_in(X)  # (b, t, h * sum(dd))
         P = P.view(b, t, h, sum(dd))  # (b, t, h, sum(dd))
-        P = P.transpose(1, 2)  # (b, h, t, sum(dd))
+        P = P.permute((2, 0, 1, 3)) # (h, b, t, sum(dd))
 
-        return torch.split(P, dd, dim=-1)  # (b, h, t, d_i)
+        return torch.split(P, dd, dim=-1)  # (h, b, t, d_i)
 
 
 class ShepardsGatedAttentionBase(nn.Module):
@@ -58,8 +58,10 @@ class ShepardsGatedAttentionBase(nn.Module):
     def forward(self, X, mask=None):
         b, t, d = X.shape
         Q, K, V, G = self.project_in(X)
-        A = shepards_MHA(Q, K, V, mask=mask)  # (b, h, t, d)
-        H = (G * A).transpose(2, 1).view(b, t, d)  # (b, t, d)
+        A = shepards_MHA(Q, K, V, mask=mask)  # (h, b, t, d)
+        H = (G * A) # (h, b, t, d)
+        H = H.permute((1, 2, 0, 3)) # (b, t, h, d)
+        H = H.view(b, t, d)
         Y = self.project_out(H)
         return Y
 

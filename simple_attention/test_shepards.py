@@ -51,14 +51,13 @@ def test_multi_head_attention():
 
 
 def test_masked_attention():
-    b, n_q, n_kv, d = 1, 3, 5, 16
+    b, n_q, n_kv, d = 2, 3, 5, 16
 
     Q = torch.randn(b, n_q, d)
     K = torch.randn(b, n_kv, d)
     V = torch.randn(b, n_kv, d)
 
-    mask = torch.rand(n_q, n_kv) < 0.5
-    print(mask)
+    mask = torch.rand(b, n_q, n_kv) < 0.5
 
     Y = shepards_MHA(Q, K, V, mask=mask)
 
@@ -71,8 +70,8 @@ def test_masked_attention():
         Y2 = shepards_MHA(Q, K, V2, mask=mask)
 
         # Test correspondence between mask and unchanged values.
-        unaffected = torch.all(torch.isclose(Y2, Y), dim=2).flatten()
-        assert (unaffected == mask[:, i]).all()
+        unaffected = torch.all(torch.isclose(Y2, Y), dim=2)
+        assert (unaffected == mask[:, :, i]).all()
 
 
 def test_ReZero():
@@ -107,7 +106,7 @@ def test_ONNX_export():
     block = ShepardsGatedAttention(dims_in=d)
 
     X = torch.randn(b, n, d)
-    mask = torch.rand(n, n) < 0.5
+    mask = torch.rand(b, n, n) < 0.5
     Y = block(X, mask)
 
     f = BytesIO()
@@ -117,7 +116,10 @@ def test_ONNX_export():
         f,
         input_names=["X", "mask"],
         output_names=["Y"],
-        dynamic_axes={"X": {0: "batch", 1: "token"}},
+        dynamic_axes={
+            "X": {0: "batch", 1: "token"},
+            "Y": {0: "token", 1: "token", 2: "token"},
+        },
     )
 
     ort_session = ort.InferenceSession(f.getvalue())
