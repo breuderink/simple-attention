@@ -26,34 +26,45 @@ class ReZero(nn.Module):
         return X + self.alpha * self.fn(X, *args, **kwargs)
 
 
-class ShepardsGatedAttention(nn.Module):
-    def __init__(self, *, d: int, heads: int = 8):
+class MultiHeadProjections(nn.Module):
+    def __init__(self, *, heads: int, dim_in: int, dims_out: list[int]):
         super().__init__()
         self.heads = heads
-        self.d = d
+        self.dims_out = dims_out
 
-        self.project_in = nn.Sequential(
-            nn.LayerNorm(d, elementwise_affine=False),
-            nn.Linear(d, 4 * d),
+        self.project_in = nn.Linear(dim_in, heads * sum(dims_out))
+
+    def forward(self, X):
+        b, t, _ = X.shape
+        h, dd = self.heads, self.dims_out
+
+        P = self.project_in(X)  # (b, t, h * sum(dd))
+        P = P.view(b, t, h, sum(dd))  # (b, t, h, sum(dd))
+        P = P.transpose(1, 2)  # (b, h, t, sum(dd))
+
+        return torch.split(P, dd, dim=-1)  # (b, h, t, d_i)
+
+
+class ShepardsGatedAttentionBase(nn.Module):
+    def __init__(self, *, dims_in: int, heads: int, dims_per_head: int = None):
+        super().__init__()
+        dims_per_head = dims_per_head if dims_per_head else dims_in // heads
+
+        self.project_in = MultiHeadProjections(
+            heads=heads, dim_in=dims_in, dims_out=4 * [dims_per_head]
         )
-        self.project_out = nn.Linear(d, d)
-
-    def QKVG(self, X):
-        b, t, d = X.shape
-        h = self.heads
-
-        P = self.project_in(X)  # (b, t, 4 * d)
-        P = P.view(b, t, h, 4 * d // h)  # (b, t, h, 4 * d / h)
-        P = P.transpose(1, 2)  # (b, h, t, 4 * d / h)
-
-        Q, K, V, G = torch.split(P, d // h, dim=-1)  # (b, h, t, _)
-        return Q, K, V, G
+        self.project_out = nn.Linear(dims_per_head * heads, dims_in)
 
     def forward(self, X, mask=None):
         b, t, d = X.shape
+        Q, K, V, G = self.project_in(X)
+        A = shepards_MHA(Q, K, V, mask=mask)  # (b, h, t, d)
+        H = (G * A).transpose(2, 1).view(b, t, d)  # (b, t, d)
+        Y = self.project_out(H)
+        return Y
 
-        Q, K, V, G = self.QKVG(X)
-        A = shepards_MHA(Q, K, V, mask=mask)  # (b, h, t, d / h)
-        O = (G * A).transpose(2, 1).view(b, t, d)  # (b, t, d)
 
-        return X + self.project_out(O)
+class ShepardsGatedAttention(ReZero):
+    def __init__(self, dims_in: int, *, heads: int = 8) -> None:
+        fn = ShepardsGatedAttentionBase(dims_in=dims_in, heads=heads)
+        super().__init__(fn)

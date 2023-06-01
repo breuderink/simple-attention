@@ -86,23 +86,25 @@ def test_ReZero():
 
 def test_ShepardsGatedAttention():
     b, n, d = 1, 1, 16
-    block = ShepardsGatedAttention(d=d)
+    block = ShepardsGatedAttention(dims_in=d)
 
     X = torch.randn(b, n, d)
     Y = block(X)
 
     assert X.shape == Y.shape
+    print({k: v.shape for k, v in block.named_parameters()})
     assert sum([p.numel() for p in block.parameters()]) == sum(
         [
-            d * 4 * (1 + d),  # input projection
-            d * d + d,  # output projection
+            1,  # ReZero
+            4 * d * (1 + d),  # input projection
+            d * (1 + d),  # output projection
         ]
     )
 
 
 def test_ONNX_export():
     b, n, d = 2, 10, 32
-    block = ShepardsGatedAttention(d=d)
+    block = ShepardsGatedAttention(dims_in=d)
 
     X = torch.randn(b, n, d)
     mask = torch.rand(n, n) < 0.5
