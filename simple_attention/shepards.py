@@ -77,7 +77,7 @@ class ShepardsGatedAttentionBase(nn.Module):
         return Y
 
 
-class Decoder(nn.Module):
+class Encoder(nn.Module):
     def __init__(self, *, dims_in, depth=1, prenorm=False, rezero=True, heads=8):
         super().__init__()
         steps = []

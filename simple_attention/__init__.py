@@ -1,1 +1,1 @@
-from .shepards import autoregressive_mask, Decoder
+from .shepards import autoregressive_mask, Encoder

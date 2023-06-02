@@ -6,7 +6,7 @@ from simple_attention.shepards import (
     autoregressive_mask,
     shepards_MHA,
     ReZero,
-    Decoder,
+    Encoder,
 )
 
 
@@ -83,7 +83,7 @@ def test_ReZero():
 
 def test_ShepardsGatedAttention():
     b, n, d = 1, 1, 16
-    block = Decoder(dims_in=d, depth=1, prenorm=False, rezero=True)
+    block = Encoder(dims_in=d, depth=1, prenorm=False, rezero=True)
 
     X = torch.randn(b, n, d)
     Y = block(X)
@@ -100,7 +100,7 @@ def test_ShepardsGatedAttention():
 
 def test_ONNX_export():
     b, n, d = 2, 10, 32
-    block = Decoder(dims_in=d)
+    block = Encoder(dims_in=d)
 
     X = torch.randn(b, n, d)
     mask = torch.rand(b, n, n) < 0.5
