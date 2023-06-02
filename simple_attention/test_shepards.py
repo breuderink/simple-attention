@@ -37,15 +37,15 @@ def test_attention():
 def test_multi_head_attention():
     b, h, n, d_qk, d_v = 2, 4, 10, 8, 16
 
-    Q = torch.randn(b, h, n, d_qk)
-    K = torch.randn(b, h, n, d_qk)
-    V = torch.randn(b, h, n, d_v)
+    Q = torch.randn(h, b, n, d_qk)
+    K = torch.randn(h, b, n, d_qk)
+    V = torch.randn(h, b, n, d_v)
 
     Y = shepards_MHA(Q, K, V)
 
     # Test that instances and heads are independent.
-    for batch in range(b):
-        for head in range(h):
+    for head in range(h):
+        for batch in range(b):
             Y2 = shepards_MHA(Q[batch, head], K[batch, head], V[batch, head])
             torch.testing.assert_close(Y2, Y[batch, head])
 
@@ -80,18 +80,15 @@ def test_ReZero():
     assert sum(p.numel() for p in m.parameters()) == 1
     torch.testing.assert_close(m.alpha.data, torch.zeros(1))
 
-    # TODO: test gradient?
-
 
 def test_ShepardsGatedAttention():
     b, n, d = 1, 1, 16
-    block = Decoder(dims_in=d)
+    block = Decoder(dims_in=d, depth=1, prenorm=False, rezero=True)
 
     X = torch.randn(b, n, d)
     Y = block(X)
 
     assert X.shape == Y.shape
-    print({k: v.shape for k, v in block.named_parameters()})
     assert sum([p.numel() for p in block.parameters()]) == sum(
         [
             1,  # ReZero
