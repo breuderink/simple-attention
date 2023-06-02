@@ -46,8 +46,8 @@ def test_multi_head_attention():
     # Test that instances and heads are independent.
     for head in range(h):
         for batch in range(b):
-            Y2 = shepards_MHA(Q[batch, head], K[batch, head], V[batch, head])
-            torch.testing.assert_close(Y2, Y[batch, head])
+            Y2 = shepards_MHA(Q[head, batch], K[head, batch], V[head, batch])
+            torch.testing.assert_close(Y2, Y[head, batch])
 
 
 def test_masked_attention():
