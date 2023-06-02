@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from typing import List
 
 
 def shepards_MHA(Q, K, V, mask=None, p=2, eps=1e-4):
@@ -16,6 +17,16 @@ def autoregressive_mask(n):
     return position_value > position_query
 
 
+class PreNorm(nn.Module):
+    def __init__(self, fn, norm) -> None:
+        super().__init__()
+        self.fn = fn
+        self.norm = norm
+
+    def forward(self, X, *args, **kwargs):
+        return X + self.fn(self.norm(X), *args, **kwargs)
+
+
 class ReZero(nn.Module):
     def __init__(self, fn) -> None:
         super().__init__()
@@ -27,7 +38,7 @@ class ReZero(nn.Module):
 
 
 class MultiHeadProjections(nn.Module):
-    def __init__(self, *, heads: int, dim_in: int, dims_out: list[int]):
+    def __init__(self, *, heads: int, dim_in: int, dims_out: List[int]):
         super().__init__()
         self.heads = heads
         self.dims_out = dims_out
@@ -40,7 +51,7 @@ class MultiHeadProjections(nn.Module):
 
         P = self.project_in(X)  # (b, t, h * sum(dd))
         P = P.view(b, t, h, sum(dd))  # (b, t, h, sum(dd))
-        P = P.permute((2, 0, 1, 3)) # (h, b, t, sum(dd))
+        P = P.permute((2, 0, 1, 3))  # (h, b, t, sum(dd))
 
         return torch.split(P, dd, dim=-1)  # (h, b, t, d_i)
 
@@ -59,14 +70,32 @@ class ShepardsGatedAttentionBase(nn.Module):
         b, t, d = X.shape
         Q, K, V, G = self.project_in(X)
         A = shepards_MHA(Q, K, V, mask=mask)  # (h, b, t, d)
-        H = (G * A) # (h, b, t, d)
-        H = H.permute((1, 2, 0, 3)) # (b, t, h, d)
+        H = G * A  # (h, b, t, d)
+        H = H.permute((1, 2, 0, 3))  # (b, t, h, d)
         H = H.view(b, t, d)
         Y = self.project_out(H)
         return Y
 
 
-class ShepardsGatedAttention(ReZero):
-    def __init__(self, dims_in: int, *, heads: int = 8) -> None:
-        fn = ShepardsGatedAttentionBase(dims_in=dims_in, heads=heads)
-        super().__init__(fn)
+class Decoder(nn.Module):
+    def __init__(self, *, dims_in, depth=1, prenorm=False, rezero=True, heads=8):
+        super().__init__()
+        steps = []
+
+        for _ in range(depth):
+            module = ShepardsGatedAttentionBase(dims_in=dims_in, heads=heads)
+            if rezero:
+                module = ReZero(module)
+            if prenorm:
+                norm = nn.LayerNorm(dims_in)
+                module = PreNorm(module, norm)
+
+            steps.append(module)
+
+        self.steps = nn.ParameterList(steps)
+
+    def forward(self, X, mask=None):
+        for s in self.steps:
+            X = s(X, mask=mask)
+
+        return X
