@@ -1,1 +1,1 @@
-from .shepards import autoregressive_mask, ShepardsGatedAttention
+from .shepards import autoregressive_mask, Decoder

@@ -1,10 +1,12 @@
 from io import BytesIO
 import torch
+from torch import nn
 import onnxruntime as ort
 from simple_attention.shepards import (
     autoregressive_mask,
     shepards_MHA,
-    ShepardsGatedAttention,
+    ReZero,
+    Decoder,
 )
 
 
@@ -35,28 +37,27 @@ def test_attention():
 def test_multi_head_attention():
     b, h, n, d_qk, d_v = 2, 4, 10, 8, 16
 
-    Q = torch.randn(b, h, n, d_qk)
-    K = torch.randn(b, h, n, d_qk)
-    V = torch.randn(b, h, n, d_v)
+    Q = torch.randn(h, b, n, d_qk)
+    K = torch.randn(h, b, n, d_qk)
+    V = torch.randn(h, b, n, d_v)
 
     Y = shepards_MHA(Q, K, V)
 
     # Test that instances and heads are independent.
-    for batch in range(b):
-        for head in range(h):
-            Y2 = shepards_MHA(Q[batch, head], K[batch, head], V[batch, head])
-            torch.testing.assert_close(Y2, Y[batch, head])
+    for head in range(h):
+        for batch in range(b):
+            Y2 = shepards_MHA(Q[head, batch], K[head, batch], V[head, batch])
+            torch.testing.assert_close(Y2, Y[head, batch])
 
 
 def test_masked_attention():
-    b, n_q, n_kv, d = 1, 3, 5, 16
+    b, n_q, n_kv, d = 2, 3, 5, 16
 
     Q = torch.randn(b, n_q, d)
     K = torch.randn(b, n_kv, d)
     V = torch.randn(b, n_kv, d)
 
-    mask = torch.rand(n_q, n_kv) < 0.5
-    print(mask)
+    mask = torch.rand(b, n_q, n_kv) < 0.5
 
     Y = shepards_MHA(Q, K, V, mask=mask)
 
@@ -69,13 +70,20 @@ def test_masked_attention():
         Y2 = shepards_MHA(Q, K, V2, mask=mask)
 
         # Test correspondence between mask and unchanged values.
-        unaffected = torch.all(torch.isclose(Y2, Y), dim=2).flatten()
-        assert (unaffected == mask[:, i]).all()
+        unaffected = torch.all(torch.isclose(Y2, Y), dim=2)
+        assert (unaffected == mask[:, :, i]).all()
+
+
+def test_ReZero():
+    m = ReZero(nn.Identity())
+
+    assert sum(p.numel() for p in m.parameters()) == 1
+    torch.testing.assert_close(m.alpha.data, torch.zeros(1))
 
 
 def test_ShepardsGatedAttention():
     b, n, d = 1, 1, 16
-    block = ShepardsGatedAttention(d=d)
+    block = Decoder(dims_in=d, depth=1, prenorm=False, rezero=True)
 
     X = torch.randn(b, n, d)
     Y = block(X)
@@ -83,18 +91,19 @@ def test_ShepardsGatedAttention():
     assert X.shape == Y.shape
     assert sum([p.numel() for p in block.parameters()]) == sum(
         [
-            d * 4 * (1 + d),  # input projection
-            d * d + d,  # output projection
+            1,  # ReZero
+            4 * d * (1 + d),  # input projection
+            d * (1 + d),  # output projection
         ]
     )
 
 
 def test_ONNX_export():
     b, n, d = 2, 10, 32
-    block = ShepardsGatedAttention(d=d)
+    block = Decoder(dims_in=d)
 
     X = torch.randn(b, n, d)
-    mask = torch.rand(n, n) < 0.5
+    mask = torch.rand(b, n, n) < 0.5
     Y = block(X, mask)
 
     f = BytesIO()
@@ -104,7 +113,10 @@ def test_ONNX_export():
         f,
         input_names=["X", "mask"],
         output_names=["Y"],
-        dynamic_axes={"X": {0: "batch", 1: "token"}},
+        dynamic_axes={
+            "X": {0: "batch", 1: "token"},
+            "Y": {0: "token", 1: "token", 2: "token"},
+        },
     )
 
     ort_session = ort.InferenceSession(f.getvalue())
