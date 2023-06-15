@@ -45,7 +45,7 @@ class Encoder(nn.Module):
 
             steps.append(module)
 
-        self.steps = nn.ParameterList(steps)
+        self.steps = nn.ModuleList(steps)
 
     def forward(self, X, mask=None):
         for s in self.steps:
