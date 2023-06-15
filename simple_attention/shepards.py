@@ -36,7 +36,7 @@ class ShepardsGatedAttentionBase(nn.Module):
     ):
         super().__init__()
         dims_att = dims_att if dims_att else 4
-        dims_ff = dims_ff if dims_ff else dims_in // heads
+        dims_ff = dims_ff if dims_ff else 2 * dims_in // heads
 
         self.project_in = MultiHeadProjections(
             heads=heads, dim_in=dims_in, dims_out=[dims_att, dims_att, dims_ff, dims_ff]

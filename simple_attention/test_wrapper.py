@@ -22,6 +22,7 @@ def test_autoregressive_mask():
         for k in range(5):
             assert mask[0, q, k] == (k > q)
 
+
 def test_PreNorm():
     d = 128
     preNorm = PreNorm(nn.Identity(), nn.LayerNorm(d))
@@ -32,7 +33,7 @@ def test_PreNorm():
     N = preNorm.norm(X)
     Y = preNorm(N)
 
-    torch.testing.assert_close(2*N, Y)
+    torch.testing.assert_close(2 * N, Y)
 
 
 def test_ReZero():
@@ -45,21 +46,27 @@ def test_ReZero():
     Y = reZero(X)
     torch.testing.assert_close(X, Y)
 
-
-def test_Encoder():
-    b, n, d = 1, 1, 16
-    block = Encoder(dims_in=d, depth=1, prenorm=False, rezero=True)
+    b, n, d, h, dims_ff, dims_att = 1, 1, 16, 2, 32, 3
+    block = Encoder(
+        dims_in=d,
+        depth=1,
+        prenorm=False,
+        rezero=True,
+        heads=h,
+        dims_ff=dims_ff,
+        dims_att=dims_att,
+    )
 
     X = torch.randn(b, n, d)
     Y = block(X)
 
     assert X.shape == Y.shape
+
+    n_norm = 1
+    n_proj_in = (d + 1) * h * (2 * dims_att + 2 * dims_ff)
+    n_proj_out = (h * dims_ff + 1) * d
     assert sum([p.numel() for p in block.parameters()]) == sum(
-        [
-            1,  # ReZero
-            8 * (4 + 4 + 2 + 2) * (1 + d),  # input projection
-            d * (1 + d),  # output projection
-        ]
+        [n_norm, n_proj_in, n_proj_out]
     )
 
 

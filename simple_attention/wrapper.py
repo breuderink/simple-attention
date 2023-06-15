@@ -29,14 +29,25 @@ def autoregressive_mask(n):
     return position_value > position_query
 
 
-
 class Encoder(nn.Module):
-    def __init__(self, *, dims_in, depth=1, prenorm=False, rezero=True, heads=8):
+    def __init__(
+        self,
+        *,
+        dims_in : int,
+        depth : int = 10,
+        prenorm=False,
+        rezero=True,
+        heads=8,
+        dims_att: int = None,
+        dims_ff: int = None
+    ):
         super().__init__()
         steps = []
 
         for _ in range(depth):
-            module = ShepardsGatedAttentionBase(dims_in=dims_in, heads=heads)
+            module = ShepardsGatedAttentionBase(
+                dims_in=dims_in, heads=heads, dims_att=dims_att, dims_ff=dims_ff
+            )
             if rezero:
                 module = ReZero(module)
             if prenorm:
