@@ -11,7 +11,6 @@ def shepards_MHA(Q, K, V, mask=None, p=2, eps=1e-4):
     return W @ V
 
 
-
 class MultiHeadProjections(nn.Module):
     def __init__(self, *, heads: int, dim_in: int, dims_out: List[int]):
         super().__init__()
@@ -32,22 +31,27 @@ class MultiHeadProjections(nn.Module):
 
 
 class ShepardsGatedAttentionBase(nn.Module):
-    def __init__(self, *, dims_in: int, heads: int, dims_per_head: int = None):
+    def __init__(
+        self, *, dims_in: int, heads: int, dims_att: int = None, dims_ff: int = None
+    ):
         super().__init__()
-        dims_per_head = dims_per_head if dims_per_head else dims_in // heads
+        dims_att = dims_att if dims_att else 4
+        dims_ff = dims_ff if dims_ff else dims_in // heads
 
         self.project_in = MultiHeadProjections(
-            heads=heads, dim_in=dims_in, dims_out=4 * [dims_per_head]
+            heads=heads, dim_in=dims_in, dims_out=[dims_att, dims_att, dims_ff, dims_ff]
         )
-        self.project_out = nn.Linear(dims_per_head * heads, dims_in)
+        self.project_out = nn.Linear(dims_ff * heads, dims_in)
 
     def forward(self, X, mask=None):
-        b, t, d = X.shape
+        b, t, _ = X.shape
+
         Q, K, V, G = self.project_in(X)
+        h, _, _, e = V.shape
+
         A = shepards_MHA(Q, K, V, mask=mask)  # (h, b, t, d)
         H = G * A  # (h, b, t, d)
         H = H.permute((1, 2, 0, 3))  # (b, t, h, d)
-        H = H.view(b, t, d)
+        H = H.view(b, t, h * e)
         Y = self.project_out(H)
         return Y
-

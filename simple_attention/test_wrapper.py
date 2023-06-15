@@ -57,7 +57,7 @@ def test_Encoder():
     assert sum([p.numel() for p in block.parameters()]) == sum(
         [
             1,  # ReZero
-            4 * d * (1 + d),  # input projection
+            8 * (4 + 4 + 2 + 2) * (1 + d),  # input projection
             d * (1 + d),  # output projection
         ]
     )
