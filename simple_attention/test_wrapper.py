@@ -87,7 +87,7 @@ def test_ONNX_export():
         output_names=["Y"],
         dynamic_axes={
             "X": {0: "batch", 1: "token"},
-            "Y": {0: "token", 1: "token", 2: "token"},
+            "Y": {0: "batch", 1: "token", 2: "token"},
         },
     )
 
