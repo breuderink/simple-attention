@@ -35,8 +35,8 @@ class Encoder(nn.Module):
         *,
         dims_in : int,
         depth : int = 10,
-        prenorm=False,
-        rezero=True,
+        prenorm=True,
+        rezero=False,
         heads=8,
         dims_att: int = None,
         dims_ff: int = None

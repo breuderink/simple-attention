@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="simple-attention",
-    version="1.1.1",
+    version="1.1.2",
     author="Boris Reuderink",
     author_email="boris@cortext.nl",
     description="Simple attention modules for PyTorch.",
