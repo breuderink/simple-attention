@@ -25,8 +25,8 @@ class ReZero(nn.Module):
 
 def autoregressive_mask(n):
     position_query = torch.arange(n)[None, :, None]
-    position_value = torch.arange(n)[None, None, :]
-    return position_value > position_query
+    position_key = torch.arange(n)[None, None, :]
+    return position_key > position_query
 
 
 class Encoder(nn.Module):
